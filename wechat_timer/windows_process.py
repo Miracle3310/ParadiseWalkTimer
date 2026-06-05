@@ -29,10 +29,11 @@ def activate_window_handle(handle: int) -> bool:
     if sys.platform != "win32" or handle <= 0:
         return False
 
+    SW_SHOW = 5
     SW_RESTORE = 9
     user32 = ctypes.windll.user32
-    if user32.IsIconic(handle):
-        user32.ShowWindow(handle, SW_RESTORE)
+    user32.ShowWindow(handle, SW_SHOW)
+    user32.ShowWindow(handle, SW_RESTORE)
     foreground = user32.GetForegroundWindow()
     foreground_thread = user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
     target_thread = user32.GetWindowThreadProcessId(handle, None)
