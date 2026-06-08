@@ -2,8 +2,18 @@ from __future__ import annotations
 
 import ctypes
 import sys
+from dataclasses import dataclass
 from ctypes import wintypes
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class WindowState:
+    handle: int
+    visible: bool
+    iconic: bool
+    foreground: bool
+    foreground_handle: int
 
 
 def process_image_name(pid: int) -> str:
@@ -54,6 +64,42 @@ def activate_window_handle(handle: int) -> bool:
             user32.AttachThreadInput(current_thread, target_thread, False)
         if attached_foreground:
             user32.AttachThreadInput(current_thread, foreground_thread, False)
+
+
+def get_window_state(handle: int) -> WindowState | None:
+    if sys.platform != "win32" or handle <= 0:
+        return None
+
+    user32 = ctypes.windll.user32
+    if not user32.IsWindow(handle):
+        return None
+    return WindowState(
+        handle=handle,
+        visible=bool(user32.IsWindowVisible(handle)),
+        iconic=bool(user32.IsIconic(handle)),
+        foreground_handle=int(user32.GetForegroundWindow()),
+        foreground=user32.GetForegroundWindow() == handle,
+    )
+
+
+def restore_window_state(state: WindowState | None) -> bool:
+    if sys.platform != "win32" or state is None or state.handle <= 0:
+        return False
+
+    SW_HIDE = 0
+    SW_SHOWMINIMIZED = 2
+    user32 = ctypes.windll.user32
+    if not user32.IsWindow(state.handle):
+        return False
+    if not state.visible:
+        return bool(user32.ShowWindow(state.handle, SW_HIDE))
+    if state.iconic:
+        return bool(user32.ShowWindow(state.handle, SW_SHOWMINIMIZED))
+    if state.foreground:
+        return activate_window_handle(state.handle)
+    if state.foreground_handle and state.foreground_handle != state.handle and user32.IsWindow(state.foreground_handle):
+        activate_window_handle(state.foreground_handle)
+    return True
 
 
 def find_top_level_window_handle(

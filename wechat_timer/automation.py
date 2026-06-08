@@ -11,10 +11,12 @@ from .image_match import find_template_on_screen
 from .windows_process import (
     activate_window_handle,
     find_top_level_window_handle,
+    get_window_state,
     post_window_click,
     post_window_text,
     post_window_wheel,
     process_image_name,
+    restore_window_state,
 )
 
 
@@ -42,6 +44,17 @@ class WeChatCheckinAutomation:
         self.auto = auto
 
     def run(self, dry_run: bool = False) -> AutomationResult:
+        initial_wechat_state = self._snapshot_wechat_state()
+        miniapp = None
+        try:
+            result, miniapp = self._run_checkin(dry_run=dry_run)
+            return result
+        finally:
+            if miniapp is not None:
+                self._close_window(miniapp)
+            self._restore_wechat_state(initial_wechat_state)
+
+    def _run_checkin(self, dry_run: bool = False) -> tuple[AutomationResult, object | None]:
         wechat = self._find_wechat_window()
         self._activate(wechat)
         self._open_mini_program(wechat)
@@ -57,14 +70,20 @@ class WeChatCheckinAutomation:
         visible_text = self._visible_text(miniapp)
         if self._contains_any(visible_text, self.config.success_keywords):
             self._close_window(miniapp)
-            return AutomationResult("already_done", "Mini-program already shows a completed check-in state.")
+            return (
+                AutomationResult("already_done", "Mini-program already shows a completed check-in state."),
+                None,
+            )
 
         checkin_match = self._find_checkin_button_with_scroll(miniapp)
         if checkin_match is None:
             visible_text = self._visible_text(miniapp)
             if self._contains_any(visible_text, self.config.success_keywords):
                 self._close_window(miniapp)
-                return AutomationResult("already_done", "Mini-program already shows a completed check-in state.")
+                return (
+                    AutomationResult("already_done", "Mini-program already shows a completed check-in state."),
+                    None,
+                )
             if self._contains_any(visible_text, self.config.failure_keywords):
                 raise AutomationError("Mini-program shows a failure or manual action keyword.")
             raise AutomationError(
@@ -74,16 +93,19 @@ class WeChatCheckinAutomation:
 
         if dry_run:
             self._close_window(miniapp)
-            return AutomationResult(
-                "dry_run_ok",
-                "Dry run visually located the Longfor check-in button without clicking it.",
+            return (
+                AutomationResult(
+                    "dry_run_ok",
+                    "Dry run visually located the Longfor check-in button without clicking it.",
+                ),
+                None,
             )
 
         self._click_visual_match(miniapp, checkin_match, "Longfor check-in button")
         outcome = self._wait_for_outcome_text(miniapp, self.config.timeout_seconds)
         if outcome == "success":
             self._close_window(miniapp)
-            return AutomationResult("success", "Check-in success text was detected.")
+            return AutomationResult("success", "Check-in success text was detected."), None
         if outcome == "failure":
             raise AutomationError("Mini-program shows a failure or manual action keyword.")
 
@@ -91,6 +113,37 @@ class WeChatCheckinAutomation:
             "Clicked the Longfor check-in entry but could not confirm success. "
             "A separate sign-in page may need an additional, explicitly recognized action."
         )
+
+    def _snapshot_wechat_state(self):
+        handle = find_top_level_window_handle(
+            process_names=self.config.wechat_process_names,
+            class_names=self.config.wechat_main_window_classes,
+            titles=self.config.wechat_window_keywords,
+        )
+        state = get_window_state(handle)
+        if state is not None:
+            self.logger.info(
+                "captured initial WeChat window state handle=%s visible=%s iconic=%s foreground=%s",
+                state.handle,
+                state.visible,
+                state.iconic,
+                state.foreground,
+            )
+        return state
+
+    def _restore_wechat_state(self, state) -> None:
+        if state is None:
+            return
+        if restore_window_state(state):
+            self.logger.info(
+                "restored initial WeChat window state handle=%s visible=%s iconic=%s foreground=%s",
+                state.handle,
+                state.visible,
+                state.iconic,
+                state.foreground,
+            )
+        else:
+            self.logger.debug("could not restore initial WeChat window state handle=%s", state.handle)
 
     def _find_wechat_window(self):
         window = self._wait_for_wechat_window(timeout=5, raise_on_timeout=False)
@@ -397,9 +450,14 @@ class WeChatCheckinAutomation:
     ) -> tuple[int, int, float] | None:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            handle = self._native_window_handle(window)
+            if handle:
+                activate_window_handle(handle)
             rectangle = self._window_rectangle(window)
             if rectangle is None:
-                raise AutomationError(f"Could not read the window rectangle while locating {label}.")
+                self.logger.debug("window rectangle is unavailable while locating %s; retrying", label)
+                time.sleep(0.75)
+                continue
             match = find_template_on_screen(
                 template_path=template_path,
                 region=rectangle,

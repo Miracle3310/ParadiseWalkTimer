@@ -5,10 +5,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$pythonw = Join-Path $ProjectRoot ".venv\Scripts\pythonw.exe"
 $python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $runner = Join-Path $ProjectRoot "run_checkin.py"
 
-if (-not (Test-Path $python)) {
+if (Test-Path $pythonw) {
+    $python = $pythonw
+} elseif (-not (Test-Path $python)) {
     throw "Python venv not found. Run scripts\setup.ps1 first."
 }
 if (-not (Test-Path $runner)) {
