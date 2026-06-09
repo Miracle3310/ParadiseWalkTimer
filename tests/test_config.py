@@ -13,6 +13,7 @@ class ConfigTests(unittest.TestCase):
                 "\n".join(
                     [
                         "miniapp_name: 龙湖天街",
+                        'run_time: "05:00"',
                         "save_failure_screenshot: false",
                         "timeout_seconds: 12",
                         "wechat_process_names: Weixin.exe,WeChat.exe",
@@ -41,6 +42,7 @@ class ConfigTests(unittest.TestCase):
             config = AppConfig.load(path)
 
         self.assertEqual(config.miniapp_name, "龙湖天街")
+        self.assertEqual(config.run_time, "05:00")
         self.assertFalse(config.save_failure_screenshot)
         self.assertEqual(config.timeout_seconds, 12)
         self.assertEqual(config.wechat_process_names, ["Weixin.exe", "WeChat.exe"])

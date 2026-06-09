@@ -1,6 +1,6 @@
 param(
     [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-    [string]$RunTime = "01:00",
+    [string]$RunTime = "05:00",
     [string]$TaskPrefix = "ParadiseWalkTimer"
 )
 
