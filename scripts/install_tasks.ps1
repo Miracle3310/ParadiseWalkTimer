@@ -1,13 +1,15 @@
 param(
     [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-    [string]$RunTime = "05:00",
-    [string]$TaskPrefix = "ParadiseWalkTimer"
+    [string]$RunTime = "03:00",
+    [string]$TaskPrefix = "ParadiseWalkTimer",
+    [switch]$SkipEnsureTask
 )
 
 $ErrorActionPreference = "Stop"
 $pythonw = Join-Path $ProjectRoot ".venv\Scripts\pythonw.exe"
 $python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $runner = Join-Path $ProjectRoot "run_checkin.py"
+$ensureScript = Join-Path $ProjectRoot "scripts\ensure_tasks.ps1"
 
 if (Test-Path $pythonw) {
     $python = $pythonw
@@ -20,6 +22,7 @@ if (-not (Test-Path $runner)) {
 
 $dailyName = "$TaskPrefix-Daily"
 $retryName = "$TaskPrefix-RetryOnUnlock"
+$ensureName = "$TaskPrefix-EnsureTasksAtLogon"
 
 $dailyAction = New-ScheduledTaskAction `
     -Execute $python `
@@ -98,6 +101,30 @@ if ($LASTEXITCODE -ne 0) {
 }
 Remove-Item $retryXmlPath -Force
 
+if (-not $SkipEnsureTask) {
+    if (-not (Test-Path $ensureScript)) {
+        throw "ensure_tasks.ps1 was not found in the scripts directory."
+    }
+
+    $powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    $ensureAction = New-ScheduledTaskAction `
+        -Execute $powershell `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ensureScript`" -ProjectRoot `"$ProjectRoot`" -RunTime `"$RunTime`" -TaskPrefix `"$TaskPrefix`"" `
+        -WorkingDirectory $ProjectRoot
+    $ensureTrigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+
+    Register-ScheduledTask `
+        -TaskName $ensureName `
+        -Action $ensureAction `
+        -Trigger $ensureTrigger `
+        -Principal $principal `
+        -Description "Ensure ParadiseWalkTimer scheduled tasks are registered after Windows logon." `
+        -Force | Out-Null
+}
+
 Write-Host "Registered scheduled tasks:"
 Write-Host "  $dailyName"
 Write-Host "  $retryName"
+if (-not $SkipEnsureTask) {
+    Write-Host "  $ensureName"
+}

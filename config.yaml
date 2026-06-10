@@ -1,5 +1,5 @@
 miniapp_name: 龙湖天街
-run_time: "05:00"
+run_time: "03:00"
 entry_mode: search
 locked_strategy: retry_on_unlock
 notify: desktop

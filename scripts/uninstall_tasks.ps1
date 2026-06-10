@@ -5,4 +5,5 @@ param(
 $ErrorActionPreference = "SilentlyContinue"
 schtasks.exe /Delete /TN "$TaskPrefix-Daily" /F | Out-Null
 schtasks.exe /Delete /TN "$TaskPrefix-RetryOnUnlock" /F | Out-Null
+schtasks.exe /Delete /TN "$TaskPrefix-EnsureTasksAtLogon" /F | Out-Null
 Write-Host "Removed ParadiseWalkTimer scheduled tasks if they existed."

@@ -58,7 +58,7 @@ def _as_float_pair(value: object, default: tuple[float, float]) -> tuple[float, 
 @dataclass(frozen=True)
 class AppConfig:
     miniapp_name: str = "龙湖天街"
-    run_time: str = "05:00"
+    run_time: str = "03:00"
     entry_mode: str = "search"
     locked_strategy: str = "retry_on_unlock"
     notify: str = "desktop"
